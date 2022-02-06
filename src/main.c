@@ -1,4 +1,4 @@
-/* main.c - Application main entry point */
+/* main.c - Application main entry point */ 
 
 /*
  * Copyright (c) 2015-2016 Intel Corporation
