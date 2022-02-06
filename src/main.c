@@ -31,7 +31,7 @@ static uint8_t notify_func(struct bt_conn *conn,
 			   struct bt_gatt_subscribe_params *params,
 			   const void *data, uint16_t length)
 {
-	printk("***baswi*** ENTER notify_func\n");
+	printk("ENTER notify_func\n");
 	if (!data) {
 		printk("[UNSUBSCRIBED]\n");
 		params->value_handle = 0U;
@@ -41,11 +41,11 @@ static uint8_t notify_func(struct bt_conn *conn,
 	printk("[NOTIFICATION] data %p length %u\n", data, length);
 	void * lp = data;
 	for (unsigned char i=0; i<length; i++) {
- 		printk("***baswi*** %x ", *(unsigned char *)(lp+i));
+ 		printk("%x", *(unsigned char *)(lp+i));
 	}
-	
+	printk("\n");
 	return BT_GATT_ITER_CONTINUE;
-}
+}//@@@TODO chunks of data must be reassembled
 
 static uint8_t discover_func(struct bt_conn *conn,
 			     const struct bt_gatt_attr *attr,
@@ -62,7 +62,7 @@ static uint8_t discover_func(struct bt_conn *conn,
 
 	printk("[ATTRIBUTE] handle %u\n", attr->handle);
 
-	if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HRS)) {
+	if (!bt_uuid_cmp(discover_params.uuid, BT_UUID_HRS)) {			//returns 0(false) if uuid==HRS
 		memcpy(&uuid, BT_UUID_HRS_MEASUREMENT, sizeof(uuid));
 		discover_params.uuid = &uuid.uuid;
 		discover_params.start_handle = attr->handle + 1;
@@ -73,7 +73,7 @@ static uint8_t discover_func(struct bt_conn *conn,
 			printk("Discover failed (err %d)\n", err);
 		}
 	} else if (!bt_uuid_cmp(discover_params.uuid,
-				BT_UUID_HRS_MEASUREMENT)) {
+				BT_UUID_HRS_MEASUREMENT)) {							//returns 0(false) if uuid==HRS_MEASUREMENT
 		memcpy(&uuid, BT_UUID_GATT_CCC, sizeof(uuid));
 		discover_params.uuid = &uuid.uuid;
 		discover_params.start_handle = attr->handle + 2;
@@ -85,21 +85,22 @@ static uint8_t discover_func(struct bt_conn *conn,
 			printk("Discover failed (err %d)\n", err);
 		}
 	} else {
-		subscribe_params.notify = notify_func;
+		subscribe_params.notify = notify_func;					//notification call back function
 		subscribe_params.value = BT_GATT_CCC_NOTIFY;
 		subscribe_params.ccc_handle = attr->handle;
 
-		err = bt_gatt_subscribe(conn, &subscribe_params);
+		err = bt_gatt_subscribe(conn, &subscribe_params);		//else subscribe, Subscribe Attribute Value Notification.
+																//subscribe to value notification using the Client Characteristic Configuration handle.
+																//If notification received subscribe value callback is called to return notified value. One may then decide whether to unsubscribe directly from this callback. 
+																//Notification callback with NULL data will not be called if subscription was removed by this method.
 		if (err && err != -EALREADY) {
 			printk("Subscribe failed (err %d)\n", err);
 		} else {
 			printk("[SUBSCRIBED]\n");
 		}
-
-		return BT_GATT_ITER_STOP;
+		return BT_GATT_ITER_STOP; //unsubscribe from value notifications.
 	}
-
-	return BT_GATT_ITER_STOP;
+	return BT_GATT_ITER_STOP; //unsubscribe from value notifications.
 }
 
 static bool eir_found(struct bt_data *data, void *user_data)
@@ -261,6 +262,20 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.disconnected = disconnected,
 };
 
+//call back called when MTU is updated
+void mtu_updated(struct bt_conn *conn, uint16_t tx, uint16_t rx)
+{
+	printk("Updated MTU: TX: %d RX: %d bytes\n", tx, rx);
+//@@@	CurrentMTUrx = rx;
+	//@@@CurrentMTUtx = tx;
+}
+
+//baswi added
+static struct bt_gatt_cb gatt_callbacks = {
+	.att_mtu_updated = mtu_updated
+};
+
+
 void main(void)
 {
 	int err;
@@ -272,6 +287,8 @@ void main(void)
 	}
 
 	printk("Bluetooth initialized\n");
+
+	bt_gatt_cb_register(&gatt_callbacks); 	//needed for fi mtu_updated call back function
 
 	start_scan();
 }
