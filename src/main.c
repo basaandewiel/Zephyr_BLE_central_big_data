@@ -1,10 +1,18 @@
 /* main.c - Application main entry point */ 
+/* 
+Bluetooth peripheral (server side) - C version
 
-/*
- * Copyright (c) 2015-2016 Intel Corporation
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+This program is the counterpart of the accompanion program Zephyr_BT_periph_big_data. The latter can send high volume data via Bluetooth BLE, by splitting the data into small chunks and inserting extra information so that the receiving side (the central program) is able to reassemble the received data chunks, into the high volume data as sent by the peripheral program. This central program does this reassembling of received data.
+
+The central part is both available as a Python script as as a C program (this program).
+
+This application can be used together with
+
+    Zephyr_BT_periph_big_data
+
+NOTE: this program uses the BLE UUID for HRS (heart rate) to send the data; of course this can be changed to an private UUID
+*/
+
 
 #include <zephyr/types.h>
 #include <stddef.h>
@@ -172,7 +180,7 @@ static bool eir_found(struct bt_data *data, void *user_data)
 	case BT_DATA_UUID16_ALL:
 		if (data->data_len % sizeof(uint16_t) != 0U) {
 			printk("AD malformed\n");
-			return true; //baswi - continue parsing elements
+			return true; //continue parsing elements
 		}
 
 		for (i = 0; i < data->data_len; i += sizeof(uint16_t)) {
