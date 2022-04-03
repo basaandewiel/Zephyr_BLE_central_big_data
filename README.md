@@ -1,4 +1,4 @@
-# Zephyr_BT_central_big_data
+# Zephyr_BLE_central_big_data
 
 Bluetooth peripheral (server side) - C version
 
@@ -8,7 +8,7 @@ The central part is both available as a Python script as as a C program (this re
 
 This application can be used together with
 
-    Zephyr_BT_periph_big_data
+    Zephyr_BLE_periph_big_data
     
     
 ## Building and running
