@@ -330,8 +330,6 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 void mtu_updated(struct bt_conn *conn, uint16_t tx, uint16_t rx)
 {
 	printk("Updated MTU: TX: %d RX: %d bytes\n", tx, rx);
-//@@@	CurrentMTUrx = rx;
-	//@@@CurrentMTUtx = tx;
 }
 
 //baswi added
