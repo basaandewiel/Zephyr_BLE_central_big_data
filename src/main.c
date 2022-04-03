@@ -27,11 +27,18 @@ static struct bt_uuid_16 uuid = BT_UUID_INIT_16(0);
 static struct bt_gatt_discover_params discover_params;
 static struct bt_gatt_subscribe_params subscribe_params;
 
+void * ReceivedPayload; //points to received payload so far
+uint16_t nbrOfBytesPayloadReceived; //nbr of bytes received in ALL received chunks so far
+									//do NOT initialise with 0, otherwise this counter gets reset with each chunk reeived
+									//must be global var, so value is not lost at exit of this function
+
+
 static uint8_t notify_func(struct bt_conn *conn,
 			   struct bt_gatt_subscribe_params *params,
 			   const void *data, uint16_t length)
 {
-	printk("ENTER notify_func\n");
+	printk("\n\nENTER notify_func\n");
+	printk("UUID= %X \n", BT_UUID_HRS);
 	if (!data) {
 		printk("[UNSUBSCRIBED]\n");
 		params->value_handle = 0U;
@@ -41,11 +48,60 @@ static uint8_t notify_func(struct bt_conn *conn,
 	printk("[NOTIFICATION] data %p length %u\n", data, length);
 	void * lp = data;
 	for (unsigned char i=0; i<length; i++) {
- 		printk("%x", *(unsigned char *)(lp+i));
+ 		printk("%#X ", *(unsigned char *)(lp+i));
 	}
 	printk("\n");
+	//reassemble data
+	unsigned char ChunkNbr=0; //Sequence number, starts with zero
+	unsigned char MoreDataFollows=0; //indicates whether more data chunks follow;
+									 //equals zero for last data chunk, or if data consists of only one chunk
+	unsigned char ProtocolOverhead = sizeof(ChunkNbr) + sizeof(MoreDataFollows); //overhead in each chunk
+
+	memcpy(&ChunkNbr, data, sizeof(ChunkNbr)); //extact ChunkNbr from data
+	memcpy(&MoreDataFollows, data+sizeof(ChunkNbr), sizeof(MoreDataFollows)); //extact MoreDataFollows from data
+
+	printk("ChunkNbr= %d\n", ChunkNbr);
+	printk("MoreDataFollows= %d\n", MoreDataFollows);
+
+	//append payload to already received payload
+	if (ChunkNbr == 0) {
+		//first Chunk
+		nbrOfBytesPayloadReceived = length - ProtocolOverhead;
+		ReceivedPayload = k_malloc(nbrOfBytesPayloadReceived);
+		memcpy(ReceivedPayload, data + ProtocolOverhead, nbrOfBytesPayloadReceived);
+	}
+	else {
+		//it is one of the following chunks, possibly the latest chunk
+		//Zephyr does NOT support k_realloc like realloc in standard C
+		//So allocate new memory, copy old values, and free old memory
+		int16_t temp = nbrOfBytesPayloadReceived;
+		nbrOfBytesPayloadReceived += (length - ProtocolOverhead);
+		void * tempReceivedPayload = k_malloc(nbrOfBytesPayloadReceived); //allocate space for total payload received
+		if (tempReceivedPayload == NULL) {printk("ERROR*** could not allocate memory\n");}
+		memcpy(tempReceivedPayload, ReceivedPayload, temp); //copy already received payload until now
+		memcpy(tempReceivedPayload + temp, data + ProtocolOverhead, (length - ProtocolOverhead)); //append new received payload
+
+		k_free(ReceivedPayload); //free previous allocated space
+		ReceivedPayload = tempReceivedPayload; //ReceivedPayload always point to complete set of received payloads
+	}
+	if (MoreDataFollows == 0) {
+		//return complete payload to application
+		printk("TOTAL PAYLOAD RECEIVED\n");
+		for (int i=0; i<nbrOfBytesPayloadReceived; i++) {
+			printk("%#X ", *(unsigned char *)(ReceivedPayload+i));
+		}
+		k_free(ReceivedPayload); 
+	}
+
+	//if not MoreDataFollows then finish received data (send to higher layer)
+	//else wait for next chunk
+
+	//structure of first chunk: <TAG>, <+sizeof(>LENGTH>, <MoreDataFollows> <payload>
+	//structure of next chunks: <MoreDataFollows> <payload> , so NO TAG and NO LENGTH in these chunks
+	//<TAG> is not yet used and <LENGTH> is extra check whether all data is received
+
 	return BT_GATT_ITER_CONTINUE;
-}//@@@TODO chunks of data must be reassembled
+}
 
 static uint8_t discover_func(struct bt_conn *conn,
 			     const struct bt_gatt_attr *attr,
@@ -288,7 +344,7 @@ void main(void)
 
 	printk("Bluetooth initialized\n");
 
-	bt_gatt_cb_register(&gatt_callbacks); 	//needed for fi mtu_updated call back function
+	bt_gatt_cb_register(&gatt_callbacks); 	//needed for mtu_updated call back function
 
 	start_scan();
 }
