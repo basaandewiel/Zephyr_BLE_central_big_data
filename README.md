@@ -8,7 +8,7 @@ The central part is both available as a Python script as as a C program (this re
 
 This application can be used together with
 
-    Zephyr_BLE_periph_big_data
+    https://github.com/basaandewiel/Zephyr_BLE_periph_big_data
     
     
 ## Building and running
